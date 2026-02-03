@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>JRenoir/minima - Dog vs Cat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <h2>Dog vs Cat (fastai + Gradio)</h2>
+  <p>Upload an image and get predicted class + probabilities.</p>
+
+  <input id="photo" type="file" accept="image/*" />
+  <div id="results" style="margin-top:16px;">Connecting...</div>
+
+  <script type="module">
+    import { Client } from "https://cdn.jsdelivr.net/npm/@gradio/client/+esm";
+
+    const photo = document.getElementById("photo");
+    const results = document.getElementById("results");
+
+    // Connect to Space
+    const client = await Client.connect("JRenoir/minima");
+    results.textContent = "Connected. Choose an image.";
+
+    photo.addEventListener("change", async () => {
+      const file = photo.files?.[0];
+      if (!file) return;
+
+      results.textContent = "Predicting...";
+
+      try {
+        // Endpoint is /predict and input param name is img
+        const res = await client.predict("/predict", { img: file });
+
+        // API docs: returns [0]=Predicted class (Label), [1]=P(dog), [2]=P(cat)
+        const [predObj, pDog, pCat] = res.data;
+
+        // predObj is often an object for gr.Label, e.g. {label: "cat", confidences: [...]}
+        const predictedClass =
+          (typeof predObj === "string")
+            ? predObj
+            : (predObj?.label ?? predObj?.confidences?.[0]?.label ?? String(predObj));
+
+        const imgUrl = URL.createObjectURL(file);
+
+        results.innerHTML = `
+          <img src="${imgUrl}" width="320" style="display:block;margin:10px 0;" />
+          <div><b>Predicted class:</b> ${escapeHtml(predictedClass)}</div>
+          <div><b>P(dog):</b> ${Number(pDog).toFixed(6)}</div>
+          <div><b>P(cat):</b> ${Number(pCat).toFixed(6)}</div>
+        `;
+      } catch (e) {
+        results.textContent = "Error: " + (e?.message ?? String(e));
+      }
+    });
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[m]));
+    }
+  </script>
+</body>
+</html>
+
+
